@@ -126,9 +126,8 @@ def main():
     configuration, and save the quantized model to the given local path.
 
     Args:
-        hf_model_path (str): Path to the Hugging Face model
-        quant_name (str): Name of the quantized model
-        local_save_path (str): Path to save the quantized model
+        pretrained_dir (str): Path to the pretrained model
+        quant_dir (str): Path to save the quantized model
 
     Optional Args:
         zero_point (bool): Enable zero point for quantization (default: True)
@@ -140,9 +139,8 @@ def main():
         max_calib_seq_len (int): Calibration sample sequence length (default: 512)
     """
     parser = argparse.ArgumentParser(description="CLI for model quantization and saving")
-    parser.add_argument("--hf_model_path", type=str, required=True, help="Path to the Hugging Face model")
-    parser.add_argument("--quant_name", type=str, required=True, help="Name of the quantized model")
-    parser.add_argument("--local_save_path", type=str, required=True, help="Path to save the quantized model")
+    parser.add_argument("--pretrained_dir", type=str, required=True, help="Path to the Hugging Face model")
+    parser.add_argument("--quant_dir", type=str, default=None, help="Path to save the quantized model")
 
     # Quantization config arguments
     parser.add_argument("--zero_point", action="store_true", help="Enable zero point for quantization")
@@ -159,6 +157,11 @@ def main():
     parser.add_argument("--max_calib_seq_len", type=int, default=512, help="Calibration sample sequence length.")
 
     args = parser.parse_args()
+    if args.quant_dir is None:
+        if args.pretrained_dir.endswith("/"):
+            args.quant_dir = f"{args.pretrained_dir[:-1]}-{args.w_bit}bit-awq"
+        else:
+            args.quant_dir = f"{args.pretrained_dir}-{args.w_bit}bit-awq"
 
     quant_config = {
         "zero_point": args.zero_point,
@@ -167,12 +170,12 @@ def main():
         "version": args.version
     }
 
-    print(f"Loading model from: {args.hf_model_path}")
+    print(f"Loading model from: {args.pretrained_dir}")
     model = AutoAWQForCausalLM.from_pretrained(
-        args.hf_model_path,
+        args.pretrained_dir,
         device_map=args.device_map,
     )
-    tokenizer = AutoTokenizer.from_pretrained(args.hf_model_path, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.pretrained_dir, trust_remote_code=True)
 
     print(f"Quantizing model with config: {quant_config}")
     model.quantize(
@@ -183,11 +186,12 @@ def main():
         calib_data=create_calibration_dataset(args.max_calib_samples, args.max_calib_seq_len),
     )
 
-    print(f"Saving quantized model to: {args.local_save_path}")
-    model.save_quantized(args.local_save_path)
-    tokenizer.save_pretrained(args.local_save_path)
+    print(f"Saving quantized model to: {args.quant_dir}")
+    model.save_quantized(args.quant_dir)
+    tokenizer.save_pretrained(args.quant_dir)
 
-    print(f"Quantized model '{args.quant_name}' saved successfully.")
+    quant_name = args.quant_dir.split("/")[-1]
+    print(f"Quantized model {quant_name} saved successfully.")
 
 if __name__ == "__main__":
     main()

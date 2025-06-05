@@ -1,6 +1,7 @@
 import argparse
 from awq import AutoAWQForCausalLM
 from datasets import load_dataset
+import itertools
 from transformers import AutoTokenizer
 
 def load_platypus():
@@ -24,9 +25,9 @@ def load_capybara():
             out = turn.get("output", "")
             # Concatenate input and output, or just output if input is empty
             if inp:
-                flat_list.append(inp + '\n' + out)
+                flat_list.append({"text": inp + '\n' + out})
             else:
-                flat_list.append(out)
+                flat_list.append({"text":out})
     return flat_list
 
 def load_chatqa():
@@ -41,6 +42,33 @@ def load_chatqa():
     concat = data.map(concatenate_data)
     return concat
 
+def create_calibration_dataset(max_calib_samples, max_calib_seq_len):
+    platypus_data = load_platypus()
+    capybara_data = load_capybara()
+    chatqa_data = load_chatqa()
+
+    # Extract text fields from each dataset
+    platypus_texts = [x["text"] for x in platypus_data]
+    capybara_texts = [x["text"] for x in capybara_data]
+    chatqa_texts = [x["text"] for x in chatqa_data]
+
+    datasets = [platypus_texts, capybara_texts, chatqa_texts]
+
+    def truncate(text):
+        return text[:max_calib_seq_len]
+
+    # Round-robin sampling across all datasets
+    interleaved = itertools.zip_longest(*datasets, fillvalue=None)
+
+    samples = []
+    for group in interleaved:
+        for text in group:
+            if text is not None:
+                samples.append({"text": truncate(text)})
+            if len(samples) >= max_calib_samples:
+                return samples
+
+    return samples
 def main():
     parser = argparse.ArgumentParser(description="CLI for model quantization and saving")
     parser.add_argument("--hf_model_path", type=str, required=True, help="Path to the Hugging Face model")

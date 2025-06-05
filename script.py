@@ -18,7 +18,7 @@ def load_platypus():
             return {"text": x["input"] + '\n' + x["instruction"] + '\n' + x["output"]}
         
     concat = data.map(concatenate_data)
-    return concat = [text for text in concat["text"]]
+    return [text for text in concat["text"]]
 
 def load_capybara():
     data = load_dataset(
@@ -35,7 +35,7 @@ def load_capybara():
             if inp:
                 flat_list.append(inp + '\n' + out)
             else:
-                flat_list.append("text":out)
+                flat_list.append(out)
     return flat_list
 
 def load_chatqa():

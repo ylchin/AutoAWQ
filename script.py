@@ -54,29 +54,19 @@ def load_chatqa():
     concat = data.map(concatenate_data)
     return  [text for text in concat["text"]]
 
-def create_calibration_dataset(max_calib_samples, max_calib_seq_len):
+def create_calibration_dataset():
     platypus_data = load_platypus()
     capybara_data = load_capybara()
     chatqa_data = load_chatqa()
 
-    # All loaders now return lists of strings, not dicts
     datasets = [platypus_data, capybara_data, chatqa_data]
 
-    def truncate(text):
-        return text[:max_calib_seq_len]
-
-    # Round-robin sampling across all datasets
-    interleaved = itertools.zip_longest(*datasets, fillvalue=None)
-
+    # Just concatenate all samples, no truncation or max sample logic
     samples = []
-    for group in interleaved:
-        for text in group:
-            if text is not None:
-                samples.append({"text": truncate(text)})
-            if len(samples) >= max_calib_samples:
-                return samples
-
+    for dataset in datasets:
+        samples.extend({"text": text} for text in dataset)
     return samples
+
 def main():
     parser = argparse.ArgumentParser(description="CLI for model quantization and saving")
     parser.add_argument("--hf_model_path", type=str, required=True, help="Path to the Hugging Face model")
@@ -119,6 +109,7 @@ def main():
         quant_config=quant_config,
         max_calib_samples=args.max_calib_samples,
         max_calib_seq_len=args.max_calib_seq_len,
+        calib_data=create_calibration_dataset()
     )
 
     print(f"Saving quantized model to: {args.local_save_path}")

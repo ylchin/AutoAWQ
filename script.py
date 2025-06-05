@@ -5,6 +5,18 @@ import itertools
 from transformers import AutoTokenizer
 
 def load_platypus():
+    """
+    Loads the Open-Platypus dataset from HuggingFace's dataset hub.
+    
+    The dataset is concatenated such that the instruction is always the second line,
+    and the output is always the third line. If the input is None, it is dropped.
+    
+    Args:
+        None
+    
+    Returns:
+        A list of concatenated strings.
+    """
     data = load_dataset(
         "garage-bAInd/Open-Platypus",
         split="train",
@@ -21,6 +33,14 @@ def load_platypus():
     return [text for text in concat["text"]]
 
 def load_capybara():
+    
+    """
+    Loads the Capybara dataset and concatenates the input and output of each turn in the conversation
+    into a single string, separated by a newline.
+
+    Returns:
+        A list of strings, where each string is a concatenated input and output of each turn in the conversation.
+    """
     data = load_dataset(
         "LDJnr/Capybara",
         split="train",
@@ -39,6 +59,13 @@ def load_capybara():
     return flat_list
 
 def load_chatqa():
+    """
+    Loads the ChatQA dataset and concatenates the document, the content of the messages and the answers
+    into a single string, separated by newlines.
+
+    Returns:
+        A list of strings, where each string is a concatenated document, content and answer.
+    """
     data = load_dataset(
         "nvidia/ChatQA-Training-Data",
         split="train",
@@ -54,20 +81,64 @@ def load_chatqa():
     concat = data.map(concatenate_data)
     return  [text for text in concat["text"]]
 
-def create_calibration_dataset():
+def create_calibration_dataset(max_calib_samples=128, max_calib_seq_len=512):
+    """
+    Combines and truncates samples from Platypus, Capybara, and ChatQA datasets
+    to be used for calibration during quantization.
+
+    Args:
+        max_calib_samples (int): Total number of samples to return.
+        max_calib_seq_len (int): Maximum length of each text sample.
+
+    Returns:
+        A list of dicts with key "text", truncated to the specified length.
+    """
     platypus_data = load_platypus()
     capybara_data = load_capybara()
     chatqa_data = load_chatqa()
 
     datasets = [platypus_data, capybara_data, chatqa_data]
 
-    # Just concatenate all samples, no truncation or max sample logic
+    def truncate(text):
+        return text[:max_calib_seq_len]
+
+    # Interleave data from all datasets in round-robin fashion
+    interleaved = itertools.zip_longest(*datasets, fillvalue=None)
+
     samples = []
-    for dataset in datasets:
-        samples.extend({"text": text} for text in dataset)
+    for group in interleaved:
+        for text in group:
+            if text is not None:
+                samples.append({"text": truncate(text)})
+            if len(samples) >= max_calib_samples:
+                return samples
+
     return samples
 
 def main():
+    """
+    CLI for model quantization and saving.
+
+    This script takes a Hugging Face model path, a name for the quantized model, and a local save path
+    as required arguments. It also accepts optional arguments for quantization and model configuration.
+
+    The script will load the model from the given Hugging Face path, quantize it with the given
+    configuration, and save the quantized model to the given local path.
+
+    Args:
+        hf_model_path (str): Path to the Hugging Face model
+        quant_name (str): Name of the quantized model
+        local_save_path (str): Path to save the quantized model
+
+    Optional Args:
+        zero_point (bool): Enable zero point for quantization (default: True)
+        q_group_size (int): Quantization group size (default: 128)
+        w_bit (int): Weight bit width (default: 4)
+        version (str): Quantization version (default: "GEMM")
+        device_map (str): Device map for loading the pretrained model (default: None)
+        max_calib_samples (int): Number of calibration samples (default: 128)
+        max_calib_seq_len (int): Calibration sample sequence length (default: 512)
+    """
     parser = argparse.ArgumentParser(description="CLI for model quantization and saving")
     parser.add_argument("--hf_model_path", type=str, required=True, help="Path to the Hugging Face model")
     parser.add_argument("--quant_name", type=str, required=True, help="Name of the quantized model")
@@ -109,7 +180,7 @@ def main():
         quant_config=quant_config,
         max_calib_samples=args.max_calib_samples,
         max_calib_seq_len=args.max_calib_seq_len,
-        calib_data=create_calibration_dataset()
+        calib_data=create_calibration_dataset(args.max_calib_samples, args.max_calib_seq_len),
     )
 
     print(f"Saving quantized model to: {args.local_save_path}")

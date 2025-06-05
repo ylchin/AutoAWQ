@@ -5,7 +5,11 @@ import itertools
 from transformers import AutoTokenizer
 
 def load_platypus():
-    data = load_dataset("garage-bAInd/Open-Platypus", split="train")
+    data = load_dataset(
+        "garage-bAInd/Open-Platypus",
+        split="train",
+        cache_dir="/home/jovyan/quantization-vol-1/.cache/huggingface/datasets"
+    )
 
     def concatenate_data(x):
         if x["input"] == None:
@@ -14,10 +18,14 @@ def load_platypus():
             return {"text": x["input"] + '\n' + x["instruction"] + '\n' + x["output"]}
         
     concat = data.map(concatenate_data)
-    return concat
+    return concat = [text for text in concat["text"]]
 
 def load_capybara():
-    data = load_dataset("LDJnr/Capybara", split="train")
+    data = load_dataset(
+        "LDJnr/Capybara",
+        split="train",
+        cache_dir="/home/jovyan/quantization-vol-1/.cache/huggingface/datasets"
+    )
     flat_list = []
     for example in data:
         for turn in example["conversation"]:
@@ -25,13 +33,17 @@ def load_capybara():
             out = turn.get("output", "")
             # Concatenate input and output, or just output if input is empty
             if inp:
-                flat_list.append({"text": inp + '\n' + out})
+                flat_list.append(inp + '\n' + out)
             else:
-                flat_list.append({"text":out})
+                flat_list.append("text":out)
     return flat_list
 
 def load_chatqa():
-    data = load_dataset("nvidia/ChatQA-Training-Data", split="train")
+    data = load_dataset(
+        "nvidia/ChatQA-Training-Data",
+        split="train",
+        cache_dir="/home/jovyan/quantization-vol-1/.cache/huggingface/datasets"
+    )
 
     def concatenate_data(x):
         content = x["messages"]["content"]
@@ -40,7 +52,7 @@ def load_chatqa():
         return {"text": document + '\n' + content + '\n' + answers}
     
     concat = data.map(concatenate_data)
-    return concat
+    return  [text for text in concat["text"]]
 
 def create_calibration_dataset(max_calib_samples, max_calib_seq_len):
     platypus_data = load_platypus()

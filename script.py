@@ -59,12 +59,8 @@ def create_calibration_dataset(max_calib_samples, max_calib_seq_len):
     capybara_data = load_capybara()
     chatqa_data = load_chatqa()
 
-    # Extract text fields from each dataset
-    platypus_texts = [x["text"] for x in platypus_data]
-    capybara_texts = [x["text"] for x in capybara_data]
-    chatqa_texts = [x["text"] for x in chatqa_data]
-
-    datasets = [platypus_texts, capybara_texts, chatqa_texts]
+    # All loaders now return lists of strings, not dicts
+    datasets = [platypus_data, capybara_data, chatqa_data]
 
     def truncate(text):
         return text[:max_calib_seq_len]

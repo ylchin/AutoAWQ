@@ -68,15 +68,15 @@ def load_chatqa():
     """
     data = load_dataset(
         "nvidia/ChatQA-Training-Data",
+        "sft",
         split="train",
         cache_dir="/home/jovyan/quantization-vol-1/.cache/huggingface/datasets"
     )
 
     def concatenate_data(x):
-        content = x["messages"]["content"]
-        document = x["document"]
-        answers = x["answers"]
-        return {"text": document + '\n' + content + '\n' + answers}
+        messages = '\n'.join([m["content"] for m in x["messages"]])
+        answers = x["answers"][0]
+        return {"text": messages + "\n" + answers}
     
     concat = data.map(concatenate_data)
     return  [text for text in concat["text"]]
@@ -109,7 +109,7 @@ def create_calibration_dataset(max_calib_samples=128, max_calib_seq_len=512):
     for group in interleaved:
         for text in group:
             if text is not None:
-                samples.append({"text": truncate(text)})
+                samples.append(truncate(text))
             if len(samples) >= max_calib_samples:
                 return samples
 
